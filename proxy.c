@@ -29,11 +29,11 @@
 #endif
 
     
-int NOT_EXIT = 1;
-
-static void on_cancel(int sig) {
-    NOT_EXIT = 0;
-}
+//int NOT_EXIT = 1;
+//
+//static void on_cancel(int sig) {
+//    NOT_EXIT = 0;
+//}
 
 
 void map_fix(struct sockaddr_ina *addr, char f6)
@@ -546,11 +546,11 @@ static inline int on_tunnel(struct poolhd *pool, struct eval *val,
 }
 
 
-int big_loop(int srvfd) 
+int big_loop(int event_fd, int srvfd)
 {
     size_t bfsize = params.bfsize;
     
-    struct poolhd *pool = init_pool(params.max_open * 2 + 1);
+    struct poolhd *pool = init_pool(params.max_open * 2 + 1, event_fd);
     if (!pool) {
         perror("init pool");
         return -1;
@@ -564,9 +564,12 @@ int big_loop(int srvfd)
     
     struct eval *val;
     int i = -1, etype;
-    
+
+    int NOT_EXIT = 1;
     while (NOT_EXIT) {
         val = next_event(pool, &i, &etype);
+        if ((int) val == event_fd)
+            break;
         if (!val) {
             if (get_e() == EINTR) 
                 continue;
@@ -574,7 +577,7 @@ int big_loop(int srvfd)
             break;
         }
         LOG(LOG_L, "new event: fd: %d, evt: %s\n", val->fd, eid_name[val->type]);
-            
+
         if (!val->fd) {
             continue;
         }
@@ -610,20 +613,20 @@ int big_loop(int srvfd)
                 NOT_EXIT = 0;
         }
     }
-    LOG(LOG_E, "exit\n");
+    LOG(LOG_S, "exit\n");
     free(buffer);
     destroy_pool(pool);
     return 0;
 }
 
 
-int listener(struct sockaddr_ina srv)
+int listener(int event_fd, struct sockaddr_ina srv)
 {
     #ifdef SIGPIPE
-    if (signal(SIGPIPE, SIG_IGN))
+    if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
         uniperror("signal SIGPIPE!");
     #endif
-    signal(SIGINT, on_cancel);
+//    signal(SIGINT, on_cancel);
     
     int srvfd = nb_socket(srv.sa.sa_family, SOCK_STREAM);
     if (srvfd < 0) {
@@ -647,7 +650,11 @@ int listener(struct sockaddr_ina srv)
         close(srvfd);
         return -1;
     }
-    int status = big_loop(srvfd);
-    close(srvfd);
+    int status = big_loop(event_fd, srvfd);
+    if (getsockname(srvfd, &srv.sa, &(socklen_t){sizeof(srv)}) < 0) {
+        LOG(LOG_L, "socket already closed\n");
+    } else {
+        close(srvfd);
+    }
     return status;
 }

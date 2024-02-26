@@ -81,7 +81,7 @@ struct poolhd {
 #endif
 };
 
-struct poolhd *init_pool(int count);
+struct poolhd *init_pool(int count, int event_fd);
 
 struct eval *add_event(struct poolhd *pool, enum eid type, int fd, int e);
 

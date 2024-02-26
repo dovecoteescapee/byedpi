@@ -5,7 +5,7 @@
 #include <string.h>
 
 
-struct poolhd *init_pool(int count)
+struct poolhd *init_pool(int count, int event_fd)
 {
     struct poolhd *pool = malloc(sizeof(struct poolhd));
     if (!pool) {
@@ -33,6 +33,16 @@ struct poolhd *init_pool(int count)
     for (int i = 0; i < count; i++) {
         pool->links[i] = &(pool->items[i]);
     }
+
+    struct epoll_event event;
+    event.events = EPOLLIN;
+    event.data.fd = event_fd;
+    if (epoll_ctl(pool->efd, EPOLL_CTL_ADD, event_fd, &event) < 0) {
+        uniperror("epoll_ctl");
+        destroy_pool(pool);
+        return 0;
+    }
+
     return pool;
 }
 

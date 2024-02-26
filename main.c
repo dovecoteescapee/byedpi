@@ -5,6 +5,7 @@
 #include <string.h>
 #include <getopt.h>
 #include <limits.h>
+#include <signal.h>
 
 #include <params.h>
 #include <proxy.h>
@@ -16,6 +17,7 @@
     #include <unistd.h>
     #include <netdb.h>
     #include <fcntl.h>
+    #include <sys/eventfd.h>
 
     #define FAKE_SUPPORT 1
 #else
@@ -24,6 +26,15 @@
 #endif
 
 #define VERSION 4
+
+int event_fd = -1;
+
+void handler() {
+    if (event_fd >= 0) {
+        eventfd_write(event_fd, 1);
+        event_fd = -1;
+    }
+}
 
 
 struct packet fake_tls = { 
@@ -443,7 +454,15 @@ int main(int argc, char **argv)
             return -1;
         }
     }
-    int status = listener(s);
+
+    event_fd = eventfd(0, EFD_NONBLOCK);
+    if (event_fd < 0) {
+        uniperror("eventfd");
+        return -1;
+    }
+    signal(SIGINT, handler);
+
+    int status = listener(event_fd, s);
     #ifdef _WIN32
     WSACleanup();
     #endif
