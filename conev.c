@@ -1,5 +1,6 @@
 #define CONEV_H
 #include <conev.h>
+#include <error.h>
 
 #include <stdlib.h>
 #include <string.h>
